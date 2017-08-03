@@ -88,7 +88,14 @@ mesh_event = {'':' ',\
 
 	
 
-
+## slices
+s_rssi=slice(0,3)
+s_len=slice(3,5)
+s_type=slice(5,7)
+s_sa=slice(7,19)
+s_da=slice(19,31)
+s_seq=slice(31,35)
+s_cmdevt=slice(35,39)
 
 
 
@@ -108,7 +115,7 @@ class packet(object):
 
 
 	def decode(self,data):		
-		self.rssi = data[0:30]
+		self.rssi = data[0:3]
 		self.len = data[3:5]
 		self.type = data[5:7]
 		self.sa =rev_address(data[7:19])
