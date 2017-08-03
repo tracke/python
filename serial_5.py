@@ -172,8 +172,14 @@ class packet(object):
 			print("\r",payload,"\r\n",rev_address(hub_source)," ",time_stamp," ",hub_cnt)
 			for x in range(int(hub_cnt,16)):
 				j=22+(x * record_len)
-				hwid = payload[j:add_len]
-				hub_record[:][x]+=record_fmt.unpack(payload[j:j+record_len])
+				hwid = payload[j:12]
+				devtype = int(payload[j+12:j+14],16)
+				samples = int(payload[j+14:j+16],16)
+				max_rssi = int(payload[j+16:j+18],16)
+				mean = float.fromhex(payload[j+18:j+26])
+				std_dev = float.fromhex(payload[j+26:j+34])
+				#hub_record[:][x]+=record_fmt.unpack(payload[j:j+record_len])
+				hub_record[:][x]=(hwid,devtype,samples,max_rssi,mean,std_dev)
 				print("Hub ",x,": ",hub_record[:][x])	
 
 		#print(self.payload,"\r\n") 			
