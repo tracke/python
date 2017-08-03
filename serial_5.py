@@ -5,6 +5,8 @@
 
 # import required modules
 from __future__ import print_function  #must be 1st
+from numpy import *
+import array
 import binascii as bin
 import struct
 import threading
@@ -13,6 +15,14 @@ import sys, os
 import serial
 import time
 
+
+
+#change hex to sint
+def hex2sint(x,bits=8):
+	y=int(x,16)	
+	h=1<<(bits-1)
+	m=(1<<bits)-1
+	return ((y+h)&m)-h
 
 
 cursor = ['|','/','-','\\']
@@ -99,6 +109,98 @@ s_cmdevt=slice(35,39)
 
 
 
+
+
+
+
+### RSSI TABLE ##############
+
+record=dtype([('source',str_,12),\
+			('time',int32),\
+			('hwid',str_,12), \
+			('type',uint8),\
+			('samples',uint8),\
+			('maxRSSI',int8),\
+			('mean',float32),\
+			('stddev',float32)])
+
+
+
+class hub_table(object):
+	def __init__(self):
+		#rssi_array = array([arange(hub_cnt)],dtype=record)
+		self.hubs=list()
+		pass
+
+	def if_exists(self,sa):
+		if len(self.hubs):
+			for x in range(len(self.hubs)):
+				if self.hubs[x][0]==sa:
+					return x
+		else:
+			return None		
+
+	def add_hub(self,thisrecord):
+		self.hubs.append(thisrecord)
+		pass
+
+
+	def update_hub(self,sa,thisrecord):
+		if not self.if_exists(sa): 
+			print("\r\nnew hub:",sa,"\r\n")
+			self.add_hub(thisrecord)
+			#self.create(sa)
+			print("new table created")
+		else:
+			pass
+
+
+
+	def lookup(self,sa):
+		name='RSSI_'+sa
+		try:
+			name.shape
+			return 1
+		except:
+			return 0
+		pass
+			
+	def create(self,sa,hub_cnt=4):
+		name='RSSI_'+sa
+		name=array([arange(4)],dtype=record)	
+
+
+
+	def update(self,hub_source,time_stamp,hub_record):
+		thisrecord = list()
+		sa = rev_address(hub_source)
+		hwid = rev_address(hub_record[0])
+		devicetype = int(hub_record[1],16)
+		samples = int(hub_record[2],16)
+		rssi = hex2sint(hub_record[3],8)
+		mean = struct.unpack('<f',hub_record[4].decode('hex'))
+		stddev = struct.unpack('<f',hub_record[5].decode('hex'))
+		#if not self.lookup(sa):
+		thisrecord=(hwid,devicetype,samples,rssi,mean,stddev)
+		self.update_hub(sa,thisrecord)	
+
+
+		print("HWID: ",hwid," Device Type:",devicetype,\
+			"Max RSSI:",rssi,"#samples:",samples,\
+			"MEAN:",mean,"STD DEV:",stddev)
+		pass
+
+
+		
+
+		
+	def print(self):
+
+		pass
+
+		
+
+
 class packet(object):
 	def __init__(self):
 		self.sa = 0 #source addr
@@ -123,66 +225,48 @@ class packet(object):
 		self.seq = int(data[31:35],16)
 		self.cmd_evt = data[35:39]
 
-
-
-
 		if self.type == '03' or \
 		   self.type == '07' or \
 		   self.type == '09' or \
 		   self.type == '0A' or \
 		   self.type == '0C': 
 			self.da='BROADCAST'
-
+		elif self.type == '01':
+			self.evt = data[35:39]
+			self.payload = data[39:]
+			self.process_payload1()
+		
 		elif self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
 			self.payload = bytes(data[61:])
-			self.process_payload((self.payload))
+			self.process_payload2((self.payload))
 		else:
 			if self.type == '0D' or self.type == '95':
 				self.da = ''	
 			self.evt = ''
 
 
-	def process1_payload(self,payload):
-		
-		if self.evt == '47':   #RSSI REPORT
-			print("\r",payload)
-			record_len = 34
-			hub_source = payload[0:12]
-			time_stamp = payload[12:20]
-			hub_cnt = int(payload[20:22],16)
-			print ("hub_cnt=",hub_cnt," record_len= ",record_len)
-			
-			hub_record = [['']for y in range(hub_cnt)]
-			print(rev_address(hub_source)," ",time_stamp," ",hub_cnt)
-			for i in range(0,hub_cnt):
-				j=record_len*i
-				hub_record[:][i] += payload[(22 + j):record_len] 
-				print(hub_record[:][i])
+	def process_payload1(self):
+		print("\r\nPAYLOAD 1 -")
+		print(self.type," ",self.evt," ",self.sa,"->",self.da)
+		pass
 
-
-	def process_payload(self,payload):
+	def process_payload2(self,payload):
 		if self.evt == '47':   #RSSI REPORT
-			s=struct.Struct('12s8s2s')
+			s=struct.Struct('<12s8s2s')
 			record_fmt=struct.Struct('12s2s2s2s8s8s')
 			hub_source,time_stamp,hub_cnt =s.unpack(payload[0:22])
 			hub_record = [[]for y in range(int(hub_cnt,16))]			
 			record_len = 34
 			#packed_data = bin.unhexlify(payload)
-			print("\r",payload,"\r\n",rev_address(hub_source)," ",time_stamp," ",hub_cnt)
+			print("\r",rev_address(hub_source)," ",time_stamp," ",hub_cnt)
 			for x in range(int(hub_cnt,16)):
 				j=22+(x * record_len)
-				hwid = payload[j:12]
-				devtype = int(payload[j+12:j+14],16)
-				samples = int(payload[j+14:j+16],16)
-				max_rssi = int(payload[j+16:j+18],16)
-				mean = float.fromhex(payload[j+18:j+26])
-				std_dev = float.fromhex(payload[j+26:j+34])
-				#hub_record[:][x]+=record_fmt.unpack(payload[j:j+record_len])
-				hub_record[:][x]=(hwid,devtype,samples,max_rssi,mean,std_dev)
-				print("Hub ",x,": ",hub_record[:][x])	
+				hub_record[:][x]+=record_fmt.unpack(payload[j:j+record_len])
+				HubTable.update(hub_source,time_stamp,hub_record[:][x])				
+				#print("Hub ",x,": ",hub_record[:][x])	
 
-		#print(self.payload,"\r\n") 			
+		
 
 			
 	def print(self):
@@ -208,6 +292,8 @@ que_size=100
 q=Queue.Queue(maxsize=que_size)
 ser=serial.Serial()
 frame=packet()
+HubTable=hub_table()
+
 
 
 def rev_address(address):
@@ -215,8 +301,15 @@ def rev_address(address):
 	radd+=address[-2:]
 	for i in range (1,6):
 		radd+=address[-(i*2+2):-(i*2)]
-		#radd+=address[-(i+1):]
 	return radd
+
+
+def rev_bytes(value,bytes):
+	x=''
+	x+=value[-2:]
+	for i in range(bytes):
+		x+=value[-(i*2+2):-(i*2)]
+	return x
 
 
 
@@ -254,7 +347,7 @@ def get_packet(q,op):
 			if data.strip():
 				if not q.full():
 					packet=data.replace(" ","")
-					q.put(bytes(packet[4:]))	    
+					q.put(bytes(packet[4:]))
 				else:
 					print("PACKET LOSS - queue size = ",q.qsize())    
 		except Exception, e:	
@@ -269,6 +362,7 @@ def process_packet(q,op):
 		try:
 			while not q.empty():
 				data=q.get()
+				#print(data)
 				#frame=data.replace(" ","")
 				frame.decode(data)
 
