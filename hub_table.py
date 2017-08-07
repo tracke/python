@@ -28,6 +28,7 @@ import struct
 import sys, os
 import serial
 import time
+import csv
 
 
 #create a list for indexing the hubs issueing reports
@@ -67,6 +68,7 @@ class RSSI_TABLE(object):
 		self.table = array([arange(hub_cnt)],dtype=hub_record)
 		self.hubs=list()
 		self.hubcnt=hub_cnt
+		self.logfile=("log"+time.strftime("%d_%m_%Y")+".csv")
 		pass
 
 	def append(self,sa):
@@ -82,6 +84,16 @@ class RSSI_TABLE(object):
 			#if not self.table[self.hubs.index(sa),0:] == self.buffer:	
 				#print("**ERROR ADDING DATA**")
 			#print("known hubs:",self.hubs)
+		# Write as a CSV file with headers on first line
+		with open(self.logfile, 'a+') as fp:
+			for idx in range(len(self.hubs)):
+				fp.write(self.hubs[idx] + '\r\n')
+				fp.write(','.join(self.table.dtype.names) + '\n')
+				for i in range(self.hubcnt):
+					fp.write(str(self.table[idx,i])+'\r\n')
+
+
+			#savetxt(fp, self.table, '%s', ',')
 		self.clear_buffer()	
 		pass
 

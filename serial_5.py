@@ -95,6 +95,12 @@ mesh_event = {'':' ',\
 				'60':'CONNECT ',\
 				'A5':'BADGE FWARE',}
 
+mesh_device = {'':" ",\
+				'01': "Comm Hub",\
+				'02': "Location Hub",\
+				'03': "Hygiene Sensor",\
+				 3 : "Hygiene Sensor",}
+
 	
 
 ## slices
@@ -216,8 +222,8 @@ class packet(object):
 		self.type = data[5:7]
 		self.sa =rev_address(data[7:19])
 		self.da =rev_address(data[19:31])
-		self.seq = data[31:35]
-		self.cmd_evt = data[35:37]
+		self.seq = data[31:33]
+		self.cmd_evt = data[33:35]
 
 		if self.type == '03' or \
 		   self.type == '07' or \
@@ -226,10 +232,10 @@ class packet(object):
 		   self.type == '0C': 
 			self.da='BROADCAST'
 		elif self.type == '01':
-			self.evt = data[35:37]
-			self.payload = data[37:]
+			self.evt = data[33:35]
+			self.payload = data[35:]
 			self.process_payload1()
-			print(data)
+			#print(data)
 		
 		elif self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
@@ -242,15 +248,24 @@ class packet(object):
 		pass
 
 	def process_payload1(self):
-		print("\r\nPAYLOAD 1 -")
+		print("\r\nPAYLOAD 1:")
 		if self.evt == '01': #set time
-			time = rev_bytes(self.payload[37:45],8)
-			print("\rSET TIME:",time)
-		print(self.type," ",mesh_event.get(self.evt)," ",self.sa,"->",self.da)
+			time = rev_bytes(self.payload[0:8],8)
+			print("\rSET TIME:",time,self.sa,"->",self.da)
+			pass
+		elif self.evt == '08': #ID CMD	
+			print("\r\nIdentify CMD",self.sa,"->",self.da)
+			pass
+		elif self.evt == '5A':
+			idx=self.payload[2:4]
+			print("\r\n","USING 5A TO SET FIRMWARE ",self.sa,"->",self.da," idx",idx)
+			#print(self.payload)			
 		pass
 
 	def process_payload2(self,payload):
-		if self.evt == '47':   #RSSI REPORT
+		if self.evt == '5A':  #SET FIRMWARE
+			print("\r\nUSING 5A TO SET FIRMWARE\r\n",self.payload)
+		elif self.evt == '47':   #RSSI REPORT
 			s=struct.Struct('<12s8s2s')
 			record_fmt=struct.Struct('12s2s2s2s8s8s')
 			hub_source,time_stamp,hub_cnt =s.unpack(payload[0:22])
@@ -274,6 +289,27 @@ class packet(object):
 				#print("rssi_array packed")
 			#print(rssi_table.buffer)	
 			rssi_table.append(sa)
+			pass
+		elif self.evt == '45': #DFU EVENT
+			who=self.payload[1:7]
+			devtype=self.payload[7:8]
+			stat=self.payload[8:10]
+			rev=self.payload[10:12]
+			print("\r\nDFU EVENT for ",mesh_device.get(devtype)," ",who)
+			pass
+		elif self.evt ==  '46':  #IDHUB
+			who = rev_address(self.payload[0:12])	
+			devtype = self.payload[12:14]
+			fware2 = self.payload[14:16]
+			fware3 = int(self.payload[16:20],16)
+			fware4 = int(self.payload[20:24],16)
+			selftest = self.payload[24:26]
+			battmv = self.payload[26:30]
+			print(self.payload)
+			print("\r\nID HUB:",mesh_device.get(devtype)," ",who)
+			print("FWARE2:",fware2,"\r\nFWARE3",fware3,"\r\nFWARE4",fware4)
+			print("Self Test:",selftest,"\r\nBATT:",battmv,"mv")
+			pass
 
 			
 	def print(self):
@@ -396,7 +432,7 @@ def main(argv):
 		t1.start()
 		t2.start()
 		while op.isSet():
-			time.sleep(10)
+			time.sleep(30)
 			print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			rssi_table.print_report(0)
