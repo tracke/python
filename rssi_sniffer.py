@@ -16,7 +16,7 @@ import time
 from hub_table import *
 
 
-#change hex to sint
+#change hex to signed int
 def hex2sint(x,bits=8):
 	y=int(x,16)	
 	h=1<<(bits-1)
@@ -98,8 +98,8 @@ mesh_event = {'':' ',\
 mesh_device = {'':" ",\
 				'01': "Comm Hub",\
 				'02': "Location Hub",\
-				'03': "Hygiene Sensor",\
-				 3 : "Hygiene Sensor",}
+				'03': "Hygiene Sensor",}
+				 
 
 	
 
@@ -115,90 +115,6 @@ mesh_device = {'':" ",\
 
 
 
-
-
-
-### RSSI TABLE ##############
-
-#record=dtype([('source',str_,12),\
-			#('time',int32),\
-			#('hwid',str_,12), \
-			#('type',uint8),\
-			#('samples',uint8),\
-			#('maxRSSI',int8),\
-			#('mean',float32),\
-			#('stddev',float32)])
-
-
-
-#class hub_table(object):
-	#def __init__(self):
-#
-		#self.hubs=list()
-		#pass
-#
-	#def if_exists(self,sa):
-		#if len(self.hubs):
-			#for x in range(len(self.hubs)):
-				#if self.hubs[x][0]==sa:
-					#return x
-		#else:
-			#return None		
-#
-	#def add_hub(self,thisrecord):
-		#self.hubs.append(thisrecord)
-		#pass
-#
-#
-	#def update_hub(self,sa,thisrecord):
-		#if not self.if_exists(sa): 
-			#print("\r\nnew hub:",sa,"\r\n")
-			#self.add_hub(thisrecord)
-			##self.create(sa)
-			#print("new table created")
-		#else:
-			#pass
-#
-#
-#
-	#def lookup(self,sa):
-		#name='RSSI_'+sa
-		#try:
-			#name.shape
-			#return 1
-		#except:
-			#return 0
-		#pass
-#			
-	#def create(self,sa,hub_cnt=4):
-		#name='RSSI_'+sa
-		#name=array([arange(4)],dtype=record)	
-#
-#
-#
-	#def update(self,hub_source,time_stamp,hub_record):
-		#thisrecord = list()
-		#sa = rev_address(hub_source)
-		#hwid = rev_address(hub_record[0])
-		#devicetype = int(hub_record[1],16)
-		#samples = int(hub_record[2],16)
-		#rssi = hex2sint(hub_record[3],8)
-		#mean = struct.unpack('<f',hub_record[4].decode('hex'))
-		#stddev = struct.unpack('<f',hub_record[5].decode('hex'))
-		##if not self.lookup(sa):
-		#rssi_table.buffer = (time_stamp,hwid,devicetype,samples,rssi,mean,stddev)
-		##thisrecord=(hwid,devicetype,samples,rssi,mean,stddev)
-		##self.update_hub(sa,thisrecord)	
-		#rssi_table.append(sa)
-		#print("HWID: ",hwid," Device Type:",devicetype,\
-			#"Max RSSI:",rssi,"#samples:",samples,\
-			#"MEAN:",mean,"STD DEV:",stddev)
-		#pass
-#
-#
-#		
-
-
 class packet(object):
 	def __init__(self):
 		self.sa = 0 #source addr
@@ -208,11 +124,6 @@ class packet(object):
 		self.type = 0
 		self.evt = 0 #mesh event
 		self.payload=''
-		pass
-		
-
-	def parse(self,data):
-		print (data)
 		pass
 
 
@@ -224,7 +135,6 @@ class packet(object):
 		self.da =rev_address(data[19:31])
 		self.seq = data[31:33]
 		self.cmd_evt = data[33:35]
-
 		if self.type == '03' or \
 		   self.type == '07' or \
 		   self.type == '09' or \
@@ -235,8 +145,7 @@ class packet(object):
 			self.evt = data[33:35]
 			self.payload = data[35:]
 			self.process_payload1()
-			#print(data)
-		
+			#print(data)		
 		elif self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
 			self.payload = bytes(data[61:])
@@ -248,7 +157,7 @@ class packet(object):
 		pass
 
 	def process_payload1(self):
-		print("\r\nPAYLOAD 1:")
+		#print("\r\nPAYLOAD 1:")
 		if self.evt == '01': #set time
 			time = rev_bytes(self.payload[0:8],8)
 			print("\rSET TIME:",time,self.sa,"->",self.da)
@@ -262,7 +171,7 @@ class packet(object):
 			#print(self.payload)			
 		pass
 
-	def process_payload2(self,payload):
+	def process_payload2(self,payload):		
 		if self.evt == '5A':  #SET FIRMWARE
 			print("\r\nUSING 5A TO SET FIRMWARE\r\n",self.payload)
 		elif self.evt == '47':   #RSSI REPORT
@@ -305,7 +214,6 @@ class packet(object):
 			fware4 = int(self.payload[20:24],16)
 			selftest = self.payload[24:26]
 			battmv = self.payload[26:30]
-			print(self.payload)
 			print("\r\nID HUB:",mesh_device.get(devtype)," ",who)
 			print("FWARE2:",fware2,"\r\nFWARE3",fware3,"\r\nFWARE4",fware4)
 			print("Self Test:",selftest,"\r\nBATT:",battmv,"mv")
@@ -313,7 +221,7 @@ class packet(object):
 
 			
 	def print(self):
-		print_buffer = "\r"+ str(self.rssi) + " "
+		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
 		if not (self.type == "01" or self.type== "0B"):
 			print_buffer += (packet_type.get(self.type))
 		if self.evt in mesh_event:	
@@ -400,13 +308,11 @@ def process_packet(q,op):
 				#print(data)
 				#frame=data.replace(" ","")
 				frame.decode(data)
-
 				if frame.type in display:
 					frame.print()
 				else:
 					print("\r",cursor[cur_idx],end='')
 					cur_idx =(cur_idx+1)%len(cursor)
-
 		except Exception, e:	
 			print("ERROR: ",str(e))
 			op.clear()		

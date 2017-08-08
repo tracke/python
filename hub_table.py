@@ -77,6 +77,8 @@ class RSSI_TABLE(object):
 			idx=self.hubs.index(sa)
 			#print ("\r\nFound",sa,"at idx",idx)
 			self.table[idx,]=self.buffer
+			with open(sa + self.logfile, 'a+') as fp:
+				fp.write(str(self.buffer) + "\r\n")
 		else:	
 			self.hubs.append(sa)
 			self.table=vstack((self.table,self.buffer))
@@ -84,16 +86,11 @@ class RSSI_TABLE(object):
 			#if not self.table[self.hubs.index(sa),0:] == self.buffer:	
 				#print("**ERROR ADDING DATA**")
 			#print("known hubs:",self.hubs)
-		# Write as a CSV file with headers on first line
-		with open(self.logfile, 'a+') as fp:
-			for idx in range(len(self.hubs)):
-				fp.write(self.hubs[idx] + '\r\n')
+			with open(sa + self.logfile, 'a+') as fp:
+				fp.write(sa + "\r\n")
 				fp.write(','.join(self.table.dtype.names) + '\n')
-				for i in range(self.hubcnt):
-					fp.write(str(self.table[idx,i])+'\r\n')
+				fp.write(str(self.buffer) + "\r\n")
 
-
-			#savetxt(fp, self.table, '%s', ',')
 		self.clear_buffer()	
 		pass
 
@@ -133,7 +130,7 @@ class RSSI_TABLE(object):
 		else:
 			print("RSSI Table Report for all Hubs\r\n")
 			for i in range(len(self.hubs)):
-				print("\r\n[",self.hubs[i],"]:")
+				print("\r\n",self.hubs[i],":")
 				self.print_record(self.hubs[i])
 
 	def clear_buffer(self):
