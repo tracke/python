@@ -18,7 +18,10 @@
 #             (2, '2', 2, 2, 2, 2.0, 2.0), (3, '3', 3, 3, 3, 3.0, 3.0)],<----- hwid at hubs[0]
 #            [(0, '0', 0, 0, 0, 0.0, 0.0), (1, '1', 1, 1, 1, 1.0, 1.0), <----- records from
 #             (2, '2', 2, 2, 2, 2.0, 2.0), (3, '3', 3, 3, 3, 3.0, 3.0)]]<----- hwid at hubs[1]
-
+#
+# Changes:
+#	2.0  	08/11/2017 added Source Address hwid to beginning of the RSSI array & table.
+#			Create composite log file and write all rssi reports to it
 
 # import required modules
 from __future__ import print_function  #must be 1st
@@ -39,10 +42,11 @@ hub_cnt = 4
 
 
 # create a record type for a recorded hub:
-#   <timestamp><hwid><device type><# of samples>
+#   <source><timestamp><hwid><device type><# of samples>
 #   <max rssi><mean of rssi samples><std dev of samples>
 
-hub_record=dtype([('time',int32),\
+hub_record=dtype([('source',str_,12),\
+			('time',int32),\
 			('hwid',str_,12), \
 			('type',uint8),\
 			('samples',uint8),\
@@ -51,15 +55,6 @@ hub_record=dtype([('time',int32),\
 			('stddev',float32)])
 
 
-# create a record entry for the rssi array. 
-# this will be used as a buffer to hold data from the RSSI_REPORT packet
-#rssi_array = array([arange(hub_cnt)],dtype=hub_record)
-
-# create the inital record of the RSSI_TABLE array
-#RSSI_TABLE = array([arange(hub_cnt)],dtype=hub_record)
-
-
-# Define the methods for operating on the array
 #
 
 class RSSI_TABLE(object):
@@ -69,28 +64,35 @@ class RSSI_TABLE(object):
 		self.hubs=list()
 		self.hubcnt=hub_cnt
 		self.logfile=("log"+time.strftime("%d_%m_%Y")+".csv")
+		self.logfile1=("Composite_Log"+time.strftime("%d_%m_%Y")+".csv")
+		with open(self.logfile1, 'a+')as fp1:
+				csv_writer=csv.writer(fp1)
+				csv_writer.writerow(self.table.dtype.names)
 		pass
 
 	def append(self,sa):
 		#print("looking for ",sa)
+		with open(self.logfile1, 'a+')as fp1:
+				csv_writer=csv.writer(fp1)
+				csv_writer.writerows(self.buffer[0])
+
 		if sa in self.hubs:
 			idx=self.hubs.index(sa)
 			#print ("\r\nFound",sa,"at idx",idx)
 			self.table[idx,]=self.buffer
 			with open(sa + self.logfile, 'a+') as fp:
-				fp.write(str(self.buffer) + "\r\n")
+				csv_writer=csv.writer(fp)
+				csv_writer.writerows(self.buffer[0])
 		else:	
 			self.hubs.append(sa)
 			self.table=vstack((self.table,self.buffer))
 			print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
-			#if not self.table[self.hubs.index(sa),0:] == self.buffer:	
-				#print("**ERROR ADDING DATA**")
-			#print("known hubs:",self.hubs)
+			ssa = []
+			ssa.append(sa) # place sa as element so we can print w/csv_writer
 			with open(sa + self.logfile, 'a+') as fp:
-				fp.write(sa + "\r\n")
-				fp.write(','.join(self.table.dtype.names) + '\n')
-				fp.write(str(self.buffer) + "\r\n")
-
+				csv_writer=csv.writer(fp)
+				csv_writer.writerow(ssa)
+				csv_writer.writerows(self.buffer[0])			
 		self.clear_buffer()	
 		pass
 

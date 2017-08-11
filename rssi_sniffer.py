@@ -194,15 +194,15 @@ class packet(object):
 				#print("HWID: ",hwid," Device Type:",devicetype,\
 				#	"Max RSSI:",rssi,"#samples:",samples,\
 				#	"MEAN:",mean,"STD DEV:",stddev)	
-				rssi_table.buffer[0,x] = time,hwid,devicetype,samples,rssi,mean,stddev
+				rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
 				#print("rssi_array packed")
 			#print(rssi_table.buffer)	
 			rssi_table.append(sa)
 			pass
 		elif self.evt == '45': #DFU EVENT
-			who=self.payload[1:7]
-			devtype=self.payload[7:8]
-			stat=self.payload[8:10]
+			who=self.payload[0:12]
+			devtype=self.payload[12:14]
+			stat=self.payload[14:10]
 			rev=self.payload[10:12]
 			print("\r\nDFU EVENT for ",mesh_device.get(devtype)," ",who)
 			pass
@@ -341,7 +341,10 @@ def main(argv):
 			time.sleep(30)
 			print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
 			#print("\r\nknown Hubs:",rssi_table.hubs)
-			rssi_table.print_report(0)
+			#rssi_table.print_report(0)
+			#rssi.table.find_hwid('0')
+			print(rssi_table.get_hubs())
+
 
 	except Exception,e:	
 		print("*ERROR -",str(e))
