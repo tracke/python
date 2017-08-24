@@ -37,6 +37,7 @@ import csv
 #create a list for indexing the hubs issueing reports
 hubs=list()
 
+
 # the number of adjacent hubs captured
 hub_cnt = 4
 
@@ -57,48 +58,94 @@ hub_record=dtype([('source',str_,12),\
 
 #
 
-class RSSI_TABLE(object):
-	def __init__(self,hub_cnt,file_save=True):
-		self.file_save =  file_save
+class RadarTable(object):
+	def __init__(self,hub_cnt):
+		rpt_hub = ''
 		self.buffer = array([arange(hub_cnt)],dtype=hub_record)
-		self.table = array([arange(hub_cnt)],dtype=hub_record)
-		self.hubs=list()
+		self.table = list() #array([arange(hub_cnt)],dtype=hub_record)
+		self.hubs=list() # reporting hubs
+		self.nodes=list()# nodes being reported
 		self.hubcnt=hub_cnt
-		self.logfile=("log"+time.strftime("%d_%m_%Y")+".csv")
-		self.logfile1=("Composite_Log"+time.strftime("%d_%m_%Y")+".csv")
-		with open(self.logfile1, 'a+')as fp1:
-				csv_writer=csv.writer(fp1)
-				csv_writer.writerow(self.table.dtype.names)
+		self.record=list() #['',([0]for x in range(self.hub_cnt))
+		self.data=[[''],
+		('', [
+        	[0.0, 0.0, 0.0, 0.0, 0.00, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.00, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+            ]  
+
+
+	def update_hubs(self,hub):
+		if not hub in self.hubs:
+			print("hub",hub,"added")
+			self.hubs.append(hub)
+		else:
+			print("hub",hub,"exists")
+
+
+
+
+	def make_record(self,sa,idx):
+		for k in range(self.hubcnt):
+			h=self.buffer[0,k]['hwid']
+			if not h in self.nodes:
+				self.nodes.append(h)
+		no_hubs = len(self.hubs) # the no of reporting hubs seen
+		no_nodes = len(self.nodes)
+		record=list()
+		datum=[[0.05 for x in range(no_nodes)]for y in range(no_nodes)]
+		#print(self.buffer)		
+		for k in range(self.hubcnt):
+			ix=self.nodes.index(self.buffer[0,k]['hwid'])
+			iy=self.hubs.index(self.buffer[0,k]['source'])			
+			datum[ix][ix]=self.buffer[0,k]['mean']
+		self.record=[sa,datum]
+		#print(self.hubs)
+		#print(self.nodes)				
+		#print(self.record)			
 		pass
+
+
+
+
+	def add_record(self,sa):
+		print("\rlooking for ",sa,"-",end='')
+		if sa in self.hubs:
+			idx=self.hubs.index(sa)
+			print ("Found  at idx",idx)
+			self.make_record(sa,idx)
+			#self.table[0,idx]=self.record			
+		else:	
+			self.hubs.append(sa)
+			idx=self.hubs.index(sa)
+			print("added at idx:",idx)
+			self.make_record(sa,idx)
+			#self.table=vstack((self.table,self.buffer))
+			self.table.append(self.record)
+			#print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
+			ssa = []
+			ssa.append(sa) # place sa as element so we can print w/csv_writer					
+		self.clear_buffer()	
+		pass
+
+
+
 
 	def append(self,sa):
 		print("\rlooking for ",sa)
 		if sa in self.hubs:
 			idx=self.hubs.index(sa)
 			print ("\r\nFound",sa,"at idx",idx)
-			self.table[idx,]=self.buffer
-			if self.file_save == True:
-				with open(sa + self.logfile, 'a+') as fp:
-					csv_writer=csv.writer(fp)
-					csv_writer.writerows(self.buffer[0])
-				with open(self.logfile1, 'a+') as fp1:
-					csv_writer=csv.writer(fp1)
-					csv_writer.writerows(self.buffer[0])
-
+			self.table[idx,]=self.buffer			
 		else:	
 			self.hubs.append(sa)
 			self.table=vstack((self.table,self.buffer))
 			print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
 			ssa = []
-			ssa.append(sa) # place sa as element so we can print w/csv_writer
-			if self.file_save == True:
-				with open(sa + self.logfile, 'a+') as fp:
-					csv_writer=csv.writer(fp)
-					csv_writer.writerow(ssa)
-					csv_writer.writerows(self.buffer[0])
-				with open(self.logfile1, 'a+') as fp1:
-					csv_writer=csv.writer(fp1)
-					csv_writer.writerows(self.buffer[0])				
+			ssa.append(sa) # place sa as element so we can print w/csv_writer					
 		self.clear_buffer()	
 		pass
 

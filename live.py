@@ -14,6 +14,7 @@ import sys, os
 import serial
 import time
 from hub_table import *
+from radar_table import *
 
 
 #change hex to signed int
@@ -98,20 +99,7 @@ mesh_event = {'':' ',\
 mesh_device = {'':" ",\
 				'01': "Comm Hub",\
 				'02': "Location Hub",\
-				'03': "Hygiene Sensor",}
-				 
-file_save = True  # True saves data in .csv files
-	
-
-## slices
-#s_rssi=slice(0,3)
-#s_len=slice(3,5)
-#s_type=slice(5,7)
-#s_sa=slice(7,19)
-#s_da=slice(19,31)
-#s_seq=slice(31,35)
-#s_cmdevt=slice(35,39)
-
+				'03': "Hygiene Sensor",}	 
 
 
 
@@ -135,18 +123,7 @@ class packet(object):
 		self.da =rev_address(data[19:31])
 		self.seq = data[31:33]
 		self.cmd_evt = data[33:35]
-		if self.type == '03' or \
-		   self.type == '07' or \
-		   self.type == '09' or \
-		   self.type == '0A' or \
-		   self.type == '0C': 
-			self.da='BROADCAST'
-		elif self.type == '01':
-			self.evt = data[33:35]
-			self.payload = data[35:]
-			self.process_payload1()
-			print(data)		
-		elif self.type =="0B" or self.type == 11:
+		if self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
 			self.payload = bytes(data[61:])
 			self.process_payload2((self.payload))
@@ -156,30 +133,11 @@ class packet(object):
 			self.evt = '0'
 		pass
 
-	def process_payload1(self):
-		#print("\r\nPAYLOAD 1:")
-		if self.evt == '01': #set time
-			time = rev_bytes(self.payload[0:8],8)
-			print("\rSET TIME:",time,self.sa,"->",self.da)
-			pass
-		elif self.evt == '08': #ID CMD	
-			print("\r\nIdentify CMD",self.sa,"->",self.da)
-			pass
-		elif self.evt == '42': #Connect CMD	
-			print("\r\nConnect",self.da)
-			pass	
-		elif self.evt == '4A': #Disconnect CMD	
-			print("\r\nDisonnect",self.sa,"->",self.da)
-			pass		
-		elif self.evt == '5A':
-			idx=self.payload[2:4]
-			print("\r\n","USING 5A TO SET FIRMWARE ",self.sa,"->",self.da," idx",idx)
-			#print(self.payload)			
-		pass
-
+	
 	def process_payload2(self,payload):		
 		if self.evt == '5A':  #SET FIRMWARE
-			print("\r\nUSING 5A TO SET FIRMWARE\r\n",self.payload)
+			#print("\r\nUSING 5A TO SET FIRMWARE\r\n",self.payload)
+			pass
 		elif self.evt == '47':   #RSSI REPORT
 			s=struct.Struct('<12s8s2s')
 			record_fmt=struct.Struct('12s2s2s2s8s8s')
@@ -187,7 +145,6 @@ class packet(object):
 			sa = rev_address(hub_source)
 			time=int(rev_bytes(time_stamp,8),16)
 			record_len = 34
-			#print("\r",time," ",rev_address(hub_source)," ",time_stamp," ",hub_cnt)
 			for x in range(int(hub_cnt,16)):
 				j=22+(x * record_len)
 				a,b,c,d,e,f = record_fmt.unpack(payload[j:j+record_len])
@@ -197,34 +154,13 @@ class packet(object):
 				rssi = hex2sint(d,8)
 				mean = struct.unpack('<f',e.decode('hex'))[0]
 				stddev = struct.unpack('<f',f.decode('hex'))[0]
-				#print("HWID: ",hwid," Device Type:",devicetype,\
-				#	"Max RSSI:",rssi,"#samples:",samples,\
-				#	"MEAN:",mean,"STD DEV:",stddev)	
-				rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
-				#print("rssi_array packed")
-			#print(rssi_table.buffer)	
-			rssi_table.append(sa)
+				#rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
+				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
+				#print("rssi_array packed")	
+			graph_data.add_record(sa)
+			print("record added")
 			pass
-		elif self.evt == '45': #DFU EVENT
-			who=self.payload[0:12]
-			devtype=self.payload[12:14]
-			stat=self.payload[14:10]
-			rev=self.payload[10:12]
-			print("\r\nDFU EVENT for ",mesh_device.get(devtype)," ",who)
-			pass
-		elif self.evt ==  '46':  #IDHUB
-			who = rev_address(self.payload[0:12])	
-			devtype = self.payload[12:14]
-			fware2 = self.payload[14:16]
-			fware3 = int(self.payload[16:20],16)
-			fware4 = int(self.payload[20:24],16)
-			selftest = self.payload[24:26]
-			battmv = self.payload[26:30]
-			print("\r\nID HUB:",mesh_device.get(devtype)," ",who)
-			print("FWARE2:",fware2,"\r\nFWARE3",fware3,"\r\nFWARE4",fware4)
-			print("Self Test:",selftest,"\r\nBATT:",battmv,"mv")
-			pass
-
+		
 			
 	def print(self):
 		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
@@ -244,8 +180,8 @@ q=Queue.Queue(maxsize=que_size)
 ser=serial.Serial()
 frame=packet()
 #HubTable=hub_table()
-rssi_table=RSSI_TABLE(hub_cnt,file_save)
-
+rssi_table=RSSI_TABLE(hub_cnt)
+graph_data = RadarTable(hub_cnt)
 
 def rev_address(address):
 	radd=''
@@ -306,16 +242,15 @@ def get_packet(q,op):
 
 def process_packet(q,op):
 	cur_idx=0
-	print("\r\nStarting Process Thread...")
+	print("\r\nStarting Process Thread")
 	while op.isSet():
 		try:
 			while not q.empty():
 				data=q.get()
-				#print(data)
-				#frame=data.replace(" ","")
 				frame.decode(data)
 				if frame.type in display:
-					frame.print()
+					#frame.print()
+					pass
 				else:
 					print("\r",cursor[cur_idx],end='')
 					cur_idx =(cur_idx+1)%len(cursor)
@@ -327,12 +262,10 @@ def process_packet(q,op):
 
 def main(argv):
 	if(len(argv)<3):   
-		print ("usage: ",argv[0],"COMx baudrate ")
+		print ("usage: ",argv[0],"COMx baudrate")
 		return    
 	comm_port=argv[1]
 	baud=argv[2]
-
-
 	try:
 		if not open_port(ser,comm_port,baud):
 			return(0)
@@ -346,13 +279,17 @@ def main(argv):
 		t1.start()
 		t2.start()
 		while op.isSet():
-			time.sleep(30)
+			time.sleep(10)
+			#
 			print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
-			#print(rssi_table.get_hubs())
-			rssi_table.print_table()
+			print("Hubs reporting:",graph_data.hubs)
+			print("Nodes Reported:",graph_data.nodes)
+			print(graph_data.table)
+			#graph.graph_it(graph_data.table)
+
 
 
 	except Exception,e:	
