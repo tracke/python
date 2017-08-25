@@ -15,7 +15,7 @@ import serial
 import time
 from hub_table import *
 from radar_table import *
-
+from hub_radar import *
 
 #change hex to signed int
 def hex2sint(x,bits=8):
@@ -101,7 +101,15 @@ mesh_device = {'':" ",\
 				'02': "Location Hub",\
 				'03': "Hygiene Sensor",}	 
 
-
+def calc_distance(rssi):
+	REFERENCE_DISTANCE = 1.82
+	REFERENCE_PATH_LOSS = 49.31
+	PATH_LOSS_EXP = 2.9
+	PROXIMITY_PREFERENCE = 1.5
+	dist=''
+	if rssi > -128:
+		dist= REFERENCE_DISTANCE * (10**(((-rssi) - REFERENCE_PATH_LOSS) / (10 * PATH_LOSS_EXP)))
+	return dist
 
 class packet(object):
 	def __init__(self):
@@ -151,16 +159,20 @@ class packet(object):
 				hwid = str(rev_address(a))
 				devicetype = int(b)
 				samples = int(c,16)
-				rssi = hex2sint(d,8)
-				mean = struct.unpack('<f',e.decode('hex'))[0]
+				rssi = hex2sint(d,8)				
+				mean = struct.unpack('<f',e.decode('hex'))[0]				
 				stddev = struct.unpack('<f',f.decode('hex'))[0]
+				dist = calc_distance(mean)
 				#rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
-				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
+				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,dist,mean,stddev
 				#print("rssi_array packed")	
 			graph_data.add_record(sa)
-			print("record added")
+			#print("record added")
 			pass
-		
+	
+
+
+
 			
 	def print(self):
 		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
@@ -182,6 +194,7 @@ frame=packet()
 #HubTable=hub_table()
 rssi_table=RSSI_TABLE(hub_cnt)
 graph_data = RadarTable(hub_cnt)
+disp=HubRadar()
 
 def rev_address(address):
 	radd=''
@@ -252,7 +265,7 @@ def process_packet(q,op):
 					#frame.print()
 					pass
 				else:
-					print("\r",cursor[cur_idx],end='')
+					print("\r",cursor[cur_idx],"\r",end='')
 					cur_idx =(cur_idx+1)%len(cursor)
 		except Exception, e:	
 			print("ERROR: ",str(e))
@@ -261,6 +274,7 @@ def process_packet(q,op):
 			
 
 def main(argv):
+
 	if(len(argv)<3):   
 		print ("usage: ",argv[0],"COMx baudrate")
 		return    
@@ -285,12 +299,22 @@ def main(argv):
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
-			print("Hubs reporting:",graph_data.hubs)
-			print("Nodes Reported:",graph_data.nodes)
-			print(graph_data.table)
+			node_num=len(graph_data.nodes)
+			hub_num=len(graph_data.hubs)
+			print(hub_num,"Hub(s) reporting ", node_num,"Nodes:")
+			#print("Nodes Reported:",graph_data.nodes)
+			#print(graph_data.table[0])
+			#for i in range(len(graph_data.table[1])):
+			#	print("\r\n",graph_data.table[1][i])
+			if hub_num >=1:
+				disp.nrows=hub_num / 3
+				disp.ncols=3
+				if disp.nrows*disp.ncols < hub_num:
+					disp.nrows+=1
+				disp.N=node_num
+				disp(graph_data.table)
+				pass	
 			#graph.graph_it(graph_data.table)
-
-
 
 	except Exception,e:	
 		print("*ERROR -",str(e))
