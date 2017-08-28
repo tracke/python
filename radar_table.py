@@ -89,14 +89,14 @@ class RadarTable(object):
 		record=list()
 		datum=[[0.05 for x in range(no_nodes)]for y in range(no_nodes)]
 		#print(self.buffer)		
-		for k in range(self.hubcnt):
+		for k in range(self.hubcnt): #hubcnt):
 			ix=self.nodes.index(self.buffer[0,k]['hwid'])
 			iy=self.hubs.index(self.buffer[0,k]['source'])			
 			datum[ix][ix]=self.buffer[0,k]['maxRSSI']
 		self.record=[sa,datum]
 		#print(self.hubs)
 		#print(self.nodes)				
-		#print(self.record)			
+		print(self.record)			
 		pass
 
 
@@ -115,7 +115,7 @@ class RadarTable(object):
 			#self.table=vstack((self.table,self.buffer))
 			self.table[1].append(self.record)
 			#print(self.table)
-			time.sleep(1)
+			#time.sleep(1)
 			#print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
 			ssa = []
 			ssa.append(sa) # place sa as element so we can print w/csv_writer					

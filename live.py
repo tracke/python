@@ -120,10 +120,12 @@ class packet(object):
 		self.type = 0
 		self.evt = 0 #mesh event
 		self.payload=''
+		self.data=''
 		pass
 
 
-	def decode(self,data):		
+	def decode(self,data):
+		self.data=''		
 		self.rssi = data[0:3]
 		self.len = data[3:5]
 		self.type = data[5:7]
@@ -153,6 +155,7 @@ class packet(object):
 			sa = rev_address(hub_source)
 			time=int(rev_bytes(time_stamp,8),16)
 			record_len = 34
+			self.data =''
 			for x in range(int(hub_cnt,16)):
 				j=22+(x * record_len)
 				a,b,c,d,e,f = record_fmt.unpack(payload[j:j+record_len])
@@ -165,22 +168,28 @@ class packet(object):
 				dist = calc_distance(mean)
 				#rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
 				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,dist,mean,stddev
+				if devicetype==3:
+					self.data+=("Dispenser at Node"+str(x)+":"+hwid+" "+str(rssi)+"dbm "+"at  "+str(dist)+" meters\r\n")
 				#print("rssi_array packed")	
 			graph_data.add_record(sa)
+			#print(":",self.data)
 			#print("record added")
 			pass
-	
+		elif self.evt == '58':
+			print( "\r\n!!VISIT!!")
+			pass
 
 
 
 			
 	def print(self):
-		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
+		print_buffer = "\r\n("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
 		if not (self.type == "01" or self.type== "0B"):
 			print_buffer += (packet_type.get(self.type))
 		if self.evt in mesh_event:	
 			print_buffer += (mesh_event.get(self.evt) +" ")
 		print_buffer +=	(self.sa + " -> " + self.da+"\r\n")
+		print_buffer += self.data
 		sys.stdout.write(print_buffer)
 		pass
 
@@ -262,7 +271,7 @@ def process_packet(q,op):
 				data=q.get()
 				frame.decode(data)
 				if frame.type in display:
-					#frame.print()
+					frame.print()
 					pass
 				else:
 					print("\r",cursor[cur_idx],"\r",end='')
@@ -280,9 +289,18 @@ def main(argv):
 		return    
 	comm_port=argv[1]
 	baud=argv[2]
+	freq=int(argv[3])
+	if not freq < 79 and freq > 73:
+		freq=78
+
+
 	try:
 		if not open_port(ser,comm_port,baud):
 			return(0)
+		freq_cmd = "F"+ argv[3]	
+		line1="setting frequency to 24."+ str(argv[3])+"MHz"
+		print(line1 )
+		ser.write(freq_cmd)	
 		op = threading.Event()	
 		t1 = threading.Thread(name='input', target=get_packet,args=(q,op))
 		t2 = threading.Thread(name='output', target=process_packet, args=(q,op))
@@ -312,6 +330,7 @@ def main(argv):
 				if disp.nrows*disp.ncols < hub_num:
 					disp.nrows+=1
 				disp.N=node_num
+				disp.hubs=hub_num
 				disp(graph_data.table)
 				pass	
 			#graph.graph_it(graph_data.table)

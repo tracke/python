@@ -100,7 +100,7 @@ mesh_device = {'':" ",\
 				'02': "Location Hub",\
 				'03': "Hygiene Sensor",}
 				 
-file_save = True  # True saves data in .csv files
+file_save = False  # True saves data in .csv files
 	
 
 ## slices
@@ -112,7 +112,15 @@ file_save = True  # True saves data in .csv files
 #s_seq=slice(31,35)
 #s_cmdevt=slice(35,39)
 
-
+def calc_distance(rssi):
+	REFERENCE_DISTANCE = 1.82
+	REFERENCE_PATH_LOSS = 49.31
+	PATH_LOSS_EXP = 2.9
+	PROXIMITY_PREFERENCE = 1.5
+	dist=''
+	if rssi > -128:
+		dist= REFERENCE_DISTANCE * (10**(((-rssi) - REFERENCE_PATH_LOSS) / (10 * PATH_LOSS_EXP)))
+	return dist
 
 
 class packet(object):
@@ -124,6 +132,7 @@ class packet(object):
 		self.type = 0
 		self.evt = 0 #mesh event
 		self.payload=''
+		self.data = ''
 		pass
 
 
@@ -152,12 +161,13 @@ class packet(object):
 			self.process_payload2((self.payload))
 		else:
 			if self.type == '0D' or self.type == '95':
-				self.da = '0'	
+				self.da = '0'
+				print("ping detected on Badge Freq. by",self.sa)	
 			self.evt = '0'
 		pass
 
 	def process_payload1(self):
-		#print("\r\nPAYLOAD 1:")
+		print("\r\nPAYLOAD 1:")
 		if self.evt == '01': #set time
 			time = rev_bytes(self.payload[0:8],8)
 			print("\rSET TIME:",time,self.sa,"->",self.da)
@@ -177,9 +187,12 @@ class packet(object):
 			#print(self.payload)			
 		pass
 
-	def process_payload2(self,payload):		
+	def process_payload2(self,payload):
+		self.data =''		
 		if self.evt == '5A':  #SET FIRMWARE
 			print("\r\nUSING 5A TO SET FIRMWARE\r\n",self.payload)
+			pass
+
 		elif self.evt == '47':   #RSSI REPORT
 			s=struct.Struct('<12s8s2s')
 			record_fmt=struct.Struct('12s2s2s2s8s8s')
@@ -197,14 +210,16 @@ class packet(object):
 				rssi = hex2sint(d,8)
 				mean = struct.unpack('<f',e.decode('hex'))[0]
 				stddev = struct.unpack('<f',f.decode('hex'))[0]
+				dist = calc_distance(mean)
 				#print("HWID: ",hwid," Device Type:",devicetype,\
 				#	"Max RSSI:",rssi,"#samples:",samples,\
 				#	"MEAN:",mean,"STD DEV:",stddev)	
 				rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
-				#print("rssi_array packed")
-			#print(rssi_table.buffer)	
+				if devicetype==3:
+					self.data+=("\r\n=>Dispenser at Node"+str(x)+":"+hwid+" "+str(rssi)+"dbm "+"at  "+str(dist)+" meters\r\n")
 			rssi_table.append(sa)
 			pass
+
 		elif self.evt == '45': #DFU EVENT
 			who=self.payload[0:12]
 			devtype=self.payload[12:14]
@@ -225,6 +240,11 @@ class packet(object):
 			print("Self Test:",selftest,"\r\nBATT:",battmv,"mv")
 			pass
 
+		elif self.evt == '58':
+			print( "\r\n!!VISIT!!")
+			pass			
+
+
 			
 	def print(self):
 		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
@@ -234,6 +254,7 @@ class packet(object):
 			print_buffer += (mesh_event.get(self.evt) +" ")
 		print_buffer +=	(self.sa + " -> " + self.da+"\r\n")
 		sys.stdout.write(print_buffer)
+		sys.stdout.write(self.data)
 		pass
 
 
@@ -306,18 +327,17 @@ def get_packet(q,op):
 
 def process_packet(q,op):
 	cur_idx=0
-	print("\r\nStarting Process Thread...")
+	print("\r\nStarting Process Thread")
 	while op.isSet():
 		try:
 			while not q.empty():
 				data=q.get()
-				#print(data)
-				#frame=data.replace(" ","")
 				frame.decode(data)
 				if frame.type in display:
 					frame.print()
+					pass
 				else:
-					print("\r",cursor[cur_idx],end='')
+					print("\r",cursor[cur_idx],"\r",end='')
 					cur_idx =(cur_idx+1)%len(cursor)
 		except Exception, e:	
 			print("ERROR: ",str(e))
@@ -326,16 +346,25 @@ def process_packet(q,op):
 			
 
 def main(argv):
-	if(len(argv)<3):   
-		print ("usage: ",argv[0],"COMx baudrate ")
+	if(len(argv)<4):   
+		print ("usage: ",argv[0],"COMx baudrate Freq")
 		return    
 	comm_port=argv[1]
 	baud=argv[2]
+	freq=int(argv[3])
+	if not freq < 79 and freq > 73:
+		freq=78
 
 
 	try:
 		if not open_port(ser,comm_port,baud):
 			return(0)
+		freq_cmd = "F"+ argv[3]	
+		line1="setting frequency to 24."+ str(argv[3])+"MHz"
+		print(line1 )
+		ser.write(freq_cmd)	
+		
+
 		op = threading.Event()	
 		t1 = threading.Thread(name='input', target=get_packet,args=(q,op))
 		t2 = threading.Thread(name='output', target=process_packet, args=(q,op))
@@ -352,7 +381,7 @@ def main(argv):
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
 			#print(rssi_table.get_hubs())
-			rssi_table.print_table()
+			#rssi_table.print_table()
 
 
 	except Exception,e:	

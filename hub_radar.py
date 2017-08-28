@@ -27,14 +27,15 @@ frame='circle'
 
 class HubRadar(object):
     def __init__(self):
-        self.N=8
+        self.nodes=8
+        self.hubs=5
         self.nrows=2
         self.ncols = 3
         self.frame='circle'
         pass
 
     def __call__(self,data):
-        print("calling plot for ",self.N,"Nodes")
+        print("calling plot for ",self.hubs,"hubs reporting",self.N,"Nodes")
         self.on_launch(data)
         self.on_running(data)
 
@@ -54,7 +55,7 @@ class HubRadar(object):
     
         """
         # calculate evenly-spaced axis angles
-        theta = np.linspace(0, 2*np.pi, self.N, endpoint=False)
+        theta = np.linspace(0, 2*np.pi, self.nodes, endpoint=False)
         # rotate theta such that the first axis is at the top
         theta += np.pi/2
     
@@ -169,9 +170,10 @@ class HubRadar(object):
     
         colors = ['b', 'r', 'g', 'm', 'y','k','c']
         # Plot the four cases from the example data on separate axes
-        #for ax, (title, case_data) in zip(axes.flatten(), data[1]):
-        for a in range(len(data[1])):
-            ax=axes[a]
+        for ax, (title, case_data) in zip(axes.flatten(), data[1]):
+        #for a in range(self.hubs): #len(data[1])):
+            #ax=axes[a]
+            print(ax)
             title=data[1][a][0]
             case_data=data[1][a][1]
             print(title,"->",case_data,"->",ax)
