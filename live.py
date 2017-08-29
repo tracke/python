@@ -165,12 +165,13 @@ class packet(object):
 				rssi = hex2sint(d,8)				
 				mean = struct.unpack('<f',e.decode('hex'))[0]				
 				stddev = struct.unpack('<f',f.decode('hex'))[0]
+				norm_mean = mean + 128
 				dist = calc_distance(mean)
-				#rssi_table.buffer[0,x] = sa,time,hwid,devicetype,samples,rssi,mean,stddev
-				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,dist,mean,stddev
+				if hwid == '000000000000':
+					hwid = 'RESET'
+				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,dist,norm_mean,stddev
 				if devicetype==3:
 					self.data+=("Dispenser at Node"+str(x)+":"+hwid+" "+str(rssi)+"dbm "+"at  "+str(dist)+" meters\r\n")
-				#print("rssi_array packed")	
 			graph_data.add_record(sa)
 			#print(":",self.data)
 			#print("record added")
@@ -189,8 +190,6 @@ class packet(object):
 		if self.evt in mesh_event:	
 			print_buffer += (mesh_event.get(self.evt) +" ")
 		print_buffer +=	(self.sa + " -> " + self.da+"\r\n")
-		print_buffer += self.data
-		sys.stdout.write(print_buffer)
 		pass
 
 
@@ -317,19 +316,20 @@ def main(argv):
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
-			node_num=len(graph_data.nodes)
+			#node_num=len(graph_data.nodes)
+			node_num=10  #max nodes
 			hub_num=len(graph_data.hubs)
 			print(hub_num,"Hub(s) reporting ", node_num,"Nodes:")
 			#print("Nodes Reported:",graph_data.nodes)
 			#print(graph_data.table[0])
 			#for i in range(len(graph_data.table[1])):
 			#	print("\r\n",graph_data.table[1][i])
-			if hub_num >=1:
+			if hub_num >=4:
 				disp.nrows=hub_num / 3
 				disp.ncols=3
 				if disp.nrows*disp.ncols < hub_num:
 					disp.nrows+=1
-				disp.N=node_num
+				disp.nodes=node_num
 				disp.hubs=hub_num
 				disp(graph_data.table)
 				pass	

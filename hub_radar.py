@@ -27,16 +27,20 @@ frame='circle'
 
 class HubRadar(object):
     def __init__(self):
+        self.run=0
         self.nodes=8
         self.hubs=5
         self.nrows=2
         self.ncols = 3
         self.frame='circle'
+
         pass
 
     def __call__(self,data):
-        print("calling plot for ",self.hubs,"hubs reporting",self.N,"Nodes")
-        self.on_launch(data)
+        print("calling plot for ",self.hubs,"hubs reporting",self.nodes,"Nodes")
+        if self.run==0:
+            self.on_launch(data)
+            self.run=1
         self.on_running(data)
 
         
@@ -134,69 +138,62 @@ class HubRadar(object):
         return verts
 
 
-    def on_running(self,data):
-        print("on running...")
-        #Update data (with the new _and_ the old points)
-        for ax, (title, case_data) in zip(axes.flatten(), data):
-            ax.set_rgrids([5, 10, 20, 30])
+    def draw_data(self,data):
+        spoke_labels=[]
+        print("labels:",data[0]) 
+        spoke_labels.extend(data[0])#.pop(0)
+        fill=self.nodes-len(spoke_labels)
+        if fill:
+            filler=[''for x in range(fill)]
+            spoke_labels.extend(filler)
+        print("labels:",spoke_labels) 
+        print("Hubs:",len(data[1]))
+        print("nrows=",self.nrows," ncols=",self.ncols)
+        colors = ['b', 'r', 'g', 'm', 'y','k','c','b','r','g']
+        for ax, (title, case_data) in zip(self.axes.flatten(), data[1]):
+            #print(ax)
+            print("plotting data from",title)
+            ax.set_rgrids([5, 10, 20, 30, 40, 50, 60, 70])
             ax.set_title(title, weight='bold', size='medium', position=(0.5, 1.1),
-                    horizontalalignment='center', verticalalignment='center')
-        for d, color in zip(case_data, colors):
-            ax.plot(theta, d, color=color)
-            ax.fill(theta, d, facecolor=color, alpha=0.25)
-        print("label spokes")    
-        ax.set_varlabels(spoke_labels)
-        #Need both of these in order to rescale
-        ax.relim()
-        ax.autoscale_view()
-        #We need to draw *and* flush
-        fig.canvas.draw()
-        time.sleep(3)
-        fig.canvas.flush_events()
+                        horizontalalignment='center', verticalalignment='center')
+            for d, color in zip(case_data, colors):
+                ax.plot(self.theta, d, color=color)
+                ax.fill(self.theta, d, facecolor=color, alpha=0.25)
+            ax.set_varlabels(spoke_labels)
         pass
 
- 
 
+    def clear_data(self):
+        for ax in self.axes.flatten():
+            plt.cla()
+            del ax.collections[:]
+            ax.clear()
+        pass        
+
+    def on_running(self,data):
+        self.theta = self.radar_factory() 
+        print("clear data")
+        self.clear_data()
+        self.draw_data(data)
+        #We need to draw *and* flush
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        pass
 
 
     def on_launch(self,data):
-        theta = self.radar_factory()        
-        spoke_labels = data[0]#.pop(0)
-        print("labels:",spoke_labels) 
-        print("nrows=",self.nrows," ncols=",self.ncols)
-        fig, axes = plt.subplots(figsize=(12, 9), nrows=self.nrows, ncols=self.ncols,
+        
+        self.theta = self.radar_factory()        
+        self.fig, self.axes = plt.subplots(figsize=(18, 12), nrows=self.nrows, ncols=self.ncols,
                                 subplot_kw=dict(projection='radar'))
-        fig.subplots_adjust(wspace=0.25, hspace=0.20, top=0.85, bottom=0.05)
-    
-        colors = ['b', 'r', 'g', 'm', 'y','k','c']
-        # Plot the four cases from the example data on separate axes
-        for ax, (title, case_data) in zip(axes.flatten(), data[1]):
-        #for a in range(self.hubs): #len(data[1])):
-            #ax=axes[a]
-            print(ax)
-            title=data[1][a][0]
-            case_data=data[1][a][1]
-            print(title,"->",case_data,"->",ax)
-            ax.set_rgrids([5, 10, 20, 30])
-            ax.set_title(title, weight='bold', size='medium', position=(0.5, 1.1),
-                        horizontalalignment='center', verticalalignment='center')
-            for i in range(len(case_data)):        #d, color in zip(case_data, colors):
-                d=case_data[i]
-                c=i%len(colors)
-                color=colors[c]
-                ax.plot(theta, d, color=color)
-                ax.fill(theta, d, facecolor=color, alpha=0.25)
-            ax.set_varlabels(spoke_labels)
-            print("done with",ax)
-
+        self.fig.subplots_adjust(wspace=0.25, hspace=0.20, top=0.85, bottom=0.05)
 
         # add legend relative to top-left plot
-        ax = axes[0, 0]
+        ax = self.axes[0, 0]
         labels = ('Factor 1', 'Factor 2', 'Factor 3', 'Factor 4', 'Factor 5')
-        legend = ax.legend(labels, loc=(0.9, .95),labelspacing=0.1, fontsize='small')
-    
-        fig.text(0.5, 0.965, 'Adjacent Node Distances per RSSI Reporting',
+        #legend = ax.legend(labels, loc=(0.9, .95),labelspacing=0.1, fontsize='small')
+
+        self.fig.text(0.5, 0.965, 'Adjacent Node Distances per RSSI Reporting',
                 horizontalalignment='center', color='black', weight='bold',
                 size='large')
-        print("done with on_launch")
     

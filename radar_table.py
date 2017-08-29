@@ -67,7 +67,7 @@ class RadarTable(object):
 		self.nodes=list()# nodes being reported
 		self.hubcnt=hub_cnt
 		self.record=[[],[]] #[[Reporting Hub],[[0.0]for x in range(self.nodes)]]
-		#self.table.append[self.nodes,self.record]
+		self.max_nodes=10
 		self.data=[]
 
 	def update_hubs(self,hub):
@@ -79,6 +79,7 @@ class RadarTable(object):
 
 
 	def make_record(self,sa,idx):
+		self.record=[0,0]
 		for k in range(self.hubcnt):
 			h=self.buffer[0,k]['hwid']
 			if not h in self.nodes:
@@ -87,16 +88,13 @@ class RadarTable(object):
 		no_hubs = len(self.hubs) # the no of reporting hubs seen
 		no_nodes = len(self.nodes)
 		record=list()
-		datum=[[0.05 for x in range(no_nodes)]for y in range(no_nodes)]
+		datum=[[0.05 for x in range(self.max_nodes)]for y in range(self.max_nodes)] 
 		#print(self.buffer)		
 		for k in range(self.hubcnt): #hubcnt):
 			ix=self.nodes.index(self.buffer[0,k]['hwid'])
 			iy=self.hubs.index(self.buffer[0,k]['source'])			
-			datum[ix][ix]=self.buffer[0,k]['maxRSSI']
-		self.record=[sa,datum]
-		#print(self.hubs)
-		#print(self.nodes)				
-		print(self.record)			
+			datum[ix][ix]=self.buffer[0,k]['mean']
+		self.record=[sa,datum]		
 		pass
 
 
@@ -105,6 +103,7 @@ class RadarTable(object):
 		if sa in self.hubs:
 			idx=self.hubs.index(sa)
 			print ("Found at idx",idx)
+			self.table[1][idx]=[sa,0]
 			self.make_record(sa,idx)
 			self.table[1][idx]=self.record			
 		else:	
@@ -112,11 +111,7 @@ class RadarTable(object):
 			idx=self.hubs.index(sa)
 			print("added at idx:",idx)
 			self.make_record(sa,idx)
-			#self.table=vstack((self.table,self.buffer))
 			self.table[1].append(self.record)
-			#print(self.table)
-			#time.sleep(1)
-			#print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
 			ssa = []
 			ssa.append(sa) # place sa as element so we can print w/csv_writer					
 		self.clear_buffer()	
