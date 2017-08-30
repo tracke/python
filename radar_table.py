@@ -41,6 +41,7 @@ hubs=list()
 # the number of adjacent hubs captured
 hub_cnt = 4
 
+DEF_VAL = 0.05
 
 # create a record type for a recorded hub:
 #   <source><timestamp><hwid><device type><# of samples>
@@ -69,6 +70,7 @@ class RadarTable(object):
 		self.record=[[],[]] #[[Reporting Hub],[[0.0]for x in range(self.nodes)]]
 		self.max_nodes=10
 		self.data=[]
+		self.report_table=[[],[]]
 
 	def update_hubs(self,hub):
 		if not hub in self.hubs:
@@ -88,28 +90,28 @@ class RadarTable(object):
 		no_hubs = len(self.hubs) # the no of reporting hubs seen
 		no_nodes = len(self.nodes)
 		record=list()
-		datum=[[0.05 for x in range(self.max_nodes)]for y in range(self.max_nodes)] 
+		datum=[[DEF_VAL for x in range(self.max_nodes)]for y in range(self.max_nodes)] 
 		#print(self.buffer)		
 		for k in range(self.hubcnt): #hubcnt):
 			ix=self.nodes.index(self.buffer[0,k]['hwid'])
 			iy=self.hubs.index(self.buffer[0,k]['source'])			
-			datum[ix][ix]=self.buffer[0,k]['mean']
+			datum[ix][ix]=self.buffer[0,k]['mean'] #for rssi. This is mean +128(for positive value)
 		self.record=[sa,datum]		
 		pass
 
 
 	def add_record(self,sa):
-		print("\rlooking for ",sa,"..",end='')
+		#dprint("\rlooking for ",sa,"..",end='')
 		if sa in self.hubs:
 			idx=self.hubs.index(sa)
-			print ("Found at idx",idx)
+			#dprint ("Found at idx",idx)
 			self.table[1][idx]=[sa,0]
 			self.make_record(sa,idx)
 			self.table[1][idx]=self.record			
 		else:	
 			self.hubs.append(sa)
 			idx=self.hubs.index(sa)
-			print("added at idx:",idx)
+			#dprint("added at idx:",idx)
 			self.make_record(sa,idx)
 			self.table[1].append(self.record)
 			ssa = []
@@ -117,23 +119,48 @@ class RadarTable(object):
 		self.clear_buffer()	
 		pass
 
+	def sort_data(self):
+		self.hubs.sort()
+		self.nodes.sort()
 
 
 
 	def append(self,sa):
-		print("\rlooking for ",sa)
+		#dprint("\rlooking for ",sa)
 		if sa in self.hubs:
 			idx=self.hubs.index(sa)
-			print ("\r\nFound",sa,"at idx",idx)
+			#dprint ("\r\nFound",sa,"at idx",idx)
 			self.table[1][idx,]=self.buffer			
 		else:	
 			self.hubs.append(sa)
 			self.table=vstack((self.table,self.buffer))
-			print("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
+			#dprint("\r\nHub ",sa,"added to hubs list at idx",self.hubs.index(sa))
 			ssa = []
 			ssa.append(sa) # place sa as element so we can print w/csv_writer					
 		self.clear_buffer()	
 		pass
+
+
+	def build_report_table(self,hub):
+		n=self.nodes
+		h=self.hubs
+		this_node=hub
+		pass 	
+
+
+	def find_node(self,node):
+		dist_table=[]
+		if not node == '0' or node =='':
+			n=self.nodes.index(node)
+			for h in range(len(self.hubs)-1):
+				#print("looking for ",node,"at hub idx ",h,":",end='')
+				if not self.table[1][h][1][n][n] == DEF_VAL:
+					#print(self.table[1][h][0])
+					norm_mean=self.table[1][h][1][n][n]
+					mean = norm_mean - 128
+					dist_table.append((self.table[1][h][0],mean))
+			#print(dist_table)
+		return dist_table		
 
 
 

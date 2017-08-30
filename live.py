@@ -16,6 +16,11 @@ import time
 from hub_table import *
 from radar_table import *
 from hub_radar import *
+from utils import *
+
+ut =  Util()
+ut.debug = False
+
 
 #change hex to signed int
 def hex2sint(x,bits=8):
@@ -101,7 +106,7 @@ mesh_device = {'':" ",\
 				'02': "Location Hub",\
 				'03': "Hygiene Sensor",}	 
 
-def calc_distance(rssi):
+def calc_distance(rssi,unit):
 	REFERENCE_DISTANCE = 1.82
 	REFERENCE_PATH_LOSS = 49.31
 	PATH_LOSS_EXP = 2.9
@@ -109,6 +114,8 @@ def calc_distance(rssi):
 	dist=''
 	if rssi > -128:
 		dist= REFERENCE_DISTANCE * (10**(((-rssi) - REFERENCE_PATH_LOSS) / (10 * PATH_LOSS_EXP)))
+		if unit == 'FEET':
+			dist *= 3.28084
 	return dist
 
 class packet(object):
@@ -166,7 +173,7 @@ class packet(object):
 				mean = struct.unpack('<f',e.decode('hex'))[0]				
 				stddev = struct.unpack('<f',f.decode('hex'))[0]
 				norm_mean = mean + 128
-				dist = calc_distance(mean)
+				dist = calc_distance(mean,'FEET')
 				if hwid == '000000000000':
 					hwid = 'RESET'
 				graph_data.buffer[0,x] = sa,time,hwid,devicetype,samples,dist,norm_mean,stddev
@@ -273,7 +280,7 @@ def process_packet(q,op):
 					frame.print()
 					pass
 				else:
-					print("\r",cursor[cur_idx],"\r",end='')
+					#dprint("\r",cursor[cur_idx],"\r",end='')
 					cur_idx =(cur_idx+1)%len(cursor)
 		except Exception, e:	
 			print("ERROR: ",str(e))
@@ -310,20 +317,22 @@ def main(argv):
 		t1.start()
 		t2.start()
 		while op.isSet():
-			time.sleep(10)
-			#
-			print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
+			time.sleep(5)
+	
+			#print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
 			#node_num=len(graph_data.nodes)
 			node_num=10  #max nodes
 			hub_num=len(graph_data.hubs)
-			print(hub_num,"Hub(s) reporting ", node_num,"Nodes:")
+			#print(hub_num,"Hub(s) reporting ", node_num,"Nodes:")
 			#print("Nodes Reported:",graph_data.nodes)
 			#print(graph_data.table[0])
 			#for i in range(len(graph_data.table[1])):
 			#	print("\r\n",graph_data.table[1][i])
+
+			#print("Update Graphs")
 			if hub_num >=4:
 				disp.nrows=hub_num / 3
 				disp.ncols=3
@@ -333,7 +342,23 @@ def main(argv):
 				disp.hubs=hub_num
 				disp(graph_data.table)
 				pass	
-			#graph.graph_it(graph_data.table)
+			#print("\r\nTable Data:",graph_data.table,"\r\n")
+			if hub_num:				
+				#dprint("Finding nodes")
+				for n in range(len(graph_data.nodes)):
+					this_node=graph_data.nodes[n]
+					#dprint ("Finding Node:",n,":",this_node)					
+					this_node_data = graph_data.find_node(this_node)
+					if this_node_data:
+						print ("\r\nNode ",n,"-",this_node,":")
+						#print(this_node_data)
+						for x in range(len(this_node_data)):
+							hwid = this_node_data[x][0]
+							dist = calc_distance(this_node_data[x][1],'FEET')
+							print((x+1),") is ","{:.2f}".format(dist)," feet from hub ",hwid )
+
+
+
 
 	except Exception,e:	
 		print("*ERROR -",str(e))
@@ -344,6 +369,10 @@ def main(argv):
 
 
 if __name__ == "__main__":
+	if len(sys.argv) < 4:
+		print("Usage:",sys.argv[0],"<sp>COMx<sp>Baud<sp>Frequency channel")
+		print("Example:",sys.argv[0]," COM3 115200 78")
+	# if arguments are there we can start...	
 	print("Starting",sys.argv[0],"...")
 	main(sys.argv[0:])
 	if(ser.isOpen()):

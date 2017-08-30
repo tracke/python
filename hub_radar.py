@@ -21,6 +21,7 @@ from matplotlib.path import Path
 from matplotlib.spines import Spine
 from matplotlib.projections.polar import PolarAxes
 from matplotlib.projections import register_projection
+import utils as ut
 plt.ion()
 frame='circle'
 
@@ -37,7 +38,7 @@ class HubRadar(object):
         pass
 
     def __call__(self,data):
-        print("calling plot for ",self.hubs,"hubs reporting",self.nodes,"Nodes")
+        #dprint("calling plot for ",self.hubs,"hubs reporting",self.nodes,"Nodes")
         if self.run==0:
             self.on_launch(data)
             self.run=1
@@ -140,19 +141,18 @@ class HubRadar(object):
 
     def draw_data(self,data):
         spoke_labels=[]
-        print("labels:",data[0]) 
         spoke_labels.extend(data[0])#.pop(0)
         fill=self.nodes-len(spoke_labels)
         if fill:
             filler=[''for x in range(fill)]
             spoke_labels.extend(filler)
-        print("labels:",spoke_labels) 
-        print("Hubs:",len(data[1]))
-        print("nrows=",self.nrows," ncols=",self.ncols)
+        #print("labels:",spoke_labels) 
+        #print("Hubs:",len(data[1]))
+        #print("nrows=",self.nrows," ncols=",self.ncols)
         colors = ['b', 'r', 'g', 'm', 'y','k','c','b','r','g']
         for ax, (title, case_data) in zip(self.axes.flatten(), data[1]):
             #print(ax)
-            print("plotting data from",title)
+            #print("plotting data from",title)
             ax.set_rgrids([5, 10, 20, 30, 40, 50, 60, 70])
             ax.set_title(title, weight='bold', size='medium', position=(0.5, 1.1),
                         horizontalalignment='center', verticalalignment='center')
@@ -172,7 +172,7 @@ class HubRadar(object):
 
     def on_running(self,data):
         self.theta = self.radar_factory() 
-        print("clear data")
+        #print("clear data")
         self.clear_data()
         self.draw_data(data)
         #We need to draw *and* flush
@@ -193,7 +193,7 @@ class HubRadar(object):
         labels = ('Factor 1', 'Factor 2', 'Factor 3', 'Factor 4', 'Factor 5')
         #legend = ax.legend(labels, loc=(0.9, .95),labelspacing=0.1, fontsize='small')
 
-        self.fig.text(0.5, 0.965, 'Adjacent Node Distances per RSSI Reporting',
+        self.fig.text(0.5, 0.965, 'Adjacent Node Signal Strength per RSSI Reporting',
                 horizontalalignment='center', color='black', weight='bold',
                 size='large')
     
