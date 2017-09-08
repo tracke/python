@@ -186,7 +186,7 @@ class HubRadar(object):
         self.theta = self.radar_factory()        
         self.fig, self.axes = plt.subplots(figsize=(18, 12), nrows=self.nrows, ncols=self.ncols,
                                 subplot_kw=dict(projection='radar'))
-        self.fig.subplots_adjust(wspace=0.25, hspace=0.20, top=0.85, bottom=0.05)
+        self.fig.subplots_adjust(wspace=0.50, hspace=0.20, top=0.85, bottom=0.05)
 
         # add legend relative to top-left plot
         ax = self.axes[0, 0]
