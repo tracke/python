@@ -51,11 +51,13 @@ packet_type = {'0':'UNKNOWN',\
 			   '0B':'PAYLOAD_2',\
 			   '0C':'RHUB_WALL_SENSOR_ONLY',\
 			   '0D':'RSSI_PING',\
-			   '95':'BADGE_BCAST'}
+			   '95':'BADGE_BCAST',\
+			   'A0':'Tag_BCAST'}
 
 display = {'01':'yes',\
 		   #'02':'',\
-		   '95':'',\
+		   #'95':'',\
+		   '0A':'',\
 		   '06':'',\
 		   #'07':'',\
 		   '08':'',\
@@ -98,7 +100,9 @@ mesh_event = {'':' ',\
 mesh_device = {'':" ",\
 				'01': "Comm Hub",\
 				'02': "Location Hub",\
-				'03': "Hygiene Sensor",}
+				'03': "Hygiene Sensor",\
+				'04': "Badge",\
+				'05': "Asset Tag",}
 				 
 file_save = False  # True saves data in .csv files
 	
@@ -125,6 +129,9 @@ def calc_distance(rssi,unit):
 	return dist
 
 
+
+
+
 class packet(object):
 	def __init__(self):
 		self.sa = 0 #source addr
@@ -135,6 +142,13 @@ class packet(object):
 		self.evt = 0 #mesh event
 		self.payload=''
 		self.data = ''
+		self.dfu_new_rev = 0
+		self.dfu_idx = 0
+		self.dfu_fmt = 1
+		self.dfu_header=0
+		self.dfu_num_of_blocks = 0
+		self.rssiFilter = -80
+		
 		pass
 
 
@@ -146,6 +160,8 @@ class packet(object):
 		self.da =rev_address(data[19:31])
 		self.seq = data[31:33]
 		self.cmd_evt = data[33:35]
+		if self.filterRSSI():
+			return
 		if self.type == '03' or \
 		   self.type == '07' or \
 		   self.type == '09' or \
@@ -159,14 +175,40 @@ class packet(object):
 			print(data)		
 		elif self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
+			print("->",data)
 			self.payload = bytes(data[61:])
+			print("==>",self.payload)
 			self.process_payload2((self.payload))
-		else:
-			if self.type == '0D' or self.type == '95':
-				self.da = '0'
-				print("ping detected on Badge Freq. by",self.sa)	
+		elif self.type == '0D' or self.type == '95':
+			self.da = '0'
+#			print("ping detected on Badge Freq. by",self.sa)	
 			self.evt = '0'
-		pass
+			self.payload = data[19:]
+#			self.process_badge_packet()
+#		elif self.type == 'A5':
+#			print("\rSET FIRMWARE - BADGE",self.sa)
+		elif self.type == 'A0':
+			self.da = '0'
+			self.evt = '0'
+			self.payload = data[19:]
+			self.process_tag_packet()
+		elif self.type == 'A5' or self.type =='A6':				
+			self.payload = data[7:]
+			self.process_set_firmware_tag()
+			print("\r",data)
+		else:
+#			print("\r\n UNSUPPORTED PACKET\r\n")		
+			pass
+
+	def filterRSSI(self):
+		retval = 0
+		try:
+			if int(self.rssi) < self.rssiFilter:
+				retval = 1	
+		except:
+			print(self.rssi)
+		return retval
+
 
 	def process_payload1(self):
 		if self.evt == '01': #set time
@@ -221,6 +263,7 @@ class packet(object):
 				#	self.data+=("\r\n"+sa+" reports Dispenser at Node"+str(x)+":"+hwid+" "+str(rssi)+"dbm "+"at  "+str(dist)+" meters\r\n")
 			#rssi_table.append(sa)
 			pass
+		
 
 		elif self.evt == '45': #DFU EVENT
 			who=self.payload[0:12]
@@ -230,16 +273,21 @@ class packet(object):
 			print("\r\nDFU EVENT for ",mesh_device.get(devtype)," ",who)
 			pass
 		elif self.evt ==  '46':  #IDHUB
+			print("->",self.payload)
+			packet_fmt = struct.Struct('<12s2s4s4s4s2s4s')
+			node,dev,dev2,dev3,dev4,test,batt=packet_fmt.unpack(self.payload[0:32])
+			print("\r\nNode:",node," device:",dev,"fware2:",dev2,"fware3:",dev3,"fware4:",dev4,"batt=",batt)
 			who = rev_address(self.payload[0:12])	
 			devtype = self.payload[12:14]
-			fware2 = int(self.payload[14:16],16)
-			fware3 = int(self.payload[16:20],16)
-			fware4 = int(self.payload[20:24],16)
-			selftest = self.payload[24:26]
-			battmv = self.payload[26:30]
+			fware2 = int(self.payload[14:18],16)
+			fware3 = int(rev_bytes(self.payload[18:22],4),16)
+			fware4 = int(self.payload[22:26],16)
+			selftest = self.payload[26:28]
+			batt = self.payload[28:32]
+			battmv = rev_bytes(self.payload[28:32],4)
 			print("\r\nID HUB:",mesh_device.get(devtype)," ",who)
 			print("FWARE2:",fware2,"\r\nFWARE3",fware3,"\r\nFWARE4",fware4)
-			print("Self Test:",selftest,"\r\nBATT:",battmv,"mv")
+			print("Self Test:",selftest,"\r\nBATT:",batt,"-",battmv,"mv")
 			pass
 
 		elif self.evt == '58' or self.evt == '51':
@@ -256,6 +304,75 @@ class packet(object):
 			print("\r\nPAYLOAD 2:")
 			print("evt:",self.evt," -> ",end='')
 			print(self.payload)	
+
+	def process_badge_packet(self):
+		try:
+			devtype = '04'
+			packet_fmt = struct.Struct('<2s4s4s2s8s4sH4s')	
+	#		rssiadj,fware,batt,Acc,DFU,metric,err,checksum = packet_fmt.unpack(self.payload[0:30])
+			rssiadj = self.payload[0:2]
+			curr_fware = int(rev_bytes(self.payload[2:6],4),16)
+			battmv = int(rev_bytes(self.payload[6:10],4),16)			
+			accel = self.payload[10:12]
+			sent_fware = int(rev_bytes(self.payload[12:16],4),16)
+			DFU_rev = int(rev_bytes(self.payload[12:16],4),16)
+			DFU_idx = int(rev_bytes(self.payload[16:20],4),16)			
+			extra = rev_bytes(self.payload[20:24],4)
+			err = self.payload[24:26]
+			checksum = self.payload[26:30]							
+			dev=mesh_device.get(devtype)
+			state= 0
+			print ("\rRSSI:",self.rssi,dev,self.sa,"Rev.",curr_fware,\
+				"Batt:",battmv,"mV","Accel",accel,"-",extra,"DFU:",DFU_idx,"-",DFU_rev,"err:",err)	
+	#		print("\r\n",self.payload,"\r\n")
+	
+		except Exception, e:
+			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
+			
+		pass	
+	
+	def process_tag_packet(self):
+		try:
+			devtype = '05'			
+	#		packet_fmt = struct.Struct('<2s4s4s2s8s4sH4s')	
+	#		rssiadj,fware,batt,Acc,DFU,metric,err,checksum = packet_fmt.unpack(self.payload[0:30])
+			rssiadj = self.payload[0:2]
+			curr_fware = int(rev_bytes(self.payload[2:6],4),16)
+			battmv = int(rev_bytes(self.payload[6:10],4),16)			
+			accel = self.payload[10:12]
+			sent_fware = int(rev_bytes(self.payload[12:16],4),16)
+			DFU_rev = int(rev_bytes(self.payload[12:16],4),16)
+			DFU_idx = int(rev_bytes(self.payload[16:20],4),16)			
+			extra = rev_bytes(self.payload[20:24],4)
+			err = self.payload[24:26]
+			checksum = self.payload[26:30]							
+			dev=mesh_device.get(devtype)
+			state= 0
+			print ("\rRSSI:",self.rssi,dev,self.sa,"Rev.",curr_fware,\
+				"Batt:",battmv,"mV","Accel",accel,"-",extra,"DFU:",DFU_idx,"-",DFU_rev,"err:",err)	 	
+	#		print("\r\n",self.payload,"\r\n")
+	
+		except Exception, e:
+			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
+			
+		pass	
+		
+	def process_set_firmware_tag(self):
+		new_fware = 0
+		header = 0
+		num_of_blocks = 0
+		fmt_rev = 0
+		device_type = self.payload[0:2]
+		image_index = int(rev_bytes(self.payload[2:6],4),16)
+		if image_index == 0:
+			self.dfu_header = self.payload[6:8]
+			self.dfu_fmt = self.payload[8:10]
+			self.dfu_new_rev = int(rev_bytes(self.payload[10:14],4),16)
+			self.dfu_num_of_blocks = int(rev_bytes(self.payload[14:18],4),16)		
+		print("\rSET FIRMWARE",self.dfu_new_rev,"for Device Type:",device_type, \
+			" idx:",image_index,"of",self.dfu_num_of_blocks,"blks")
+		pass	
+		
 			
 	def print(self):
 		print_buffer = "\r("+ str(int(time.time()))+ ") "+ str(self.rssi)+ " "
@@ -363,7 +480,7 @@ def main(argv):
 	comm_port=argv[1]
 	baud=argv[2]
 	freq=int(argv[3])
-	if not freq < 79 and freq > 73:
+	if not freq < 82 and freq > 73:
 		freq=78
 
 
@@ -387,7 +504,9 @@ def main(argv):
 		t2.start()
 		while op.isSet():
 			time.sleep(30)
-			print("\r Buffer at ",(q.qsize()/que_size)*100,"%")
+			bufferFill = (q.qsize()/que_size)*100
+			if bufferFill != 0:
+				print("\r Buffer at ",bufferFill,"%")
 			#print("\r\nknown Hubs:",rssi_table.hubs)
 			#rssi_table.print_report(0)
 			#rssi.table.find_hwid('0')
