@@ -62,7 +62,8 @@ display = {'01':'yes',\
 		   #'07':'',\
 		   '08':'',\
 		   '0B':'',\
-		   '0D':''}			   
+		   #'0D':''\
+		   }			   
 
 mesh_event = {'':' ',\
 				'01':'SET TIME ',\
@@ -172,26 +173,31 @@ class packet(object):
 			self.evt = data[33:35]
 			self.payload = data[35:]
 			self.process_payload1()
-			print(data)		
+#			print(data)		
 		elif self.type =="0B" or self.type == 11:
 			self.evt = data[59:61]
 			print("->",data)
 			self.payload = bytes(data[61:])
 			print("==>",self.payload)
 			self.process_payload2((self.payload))
-		elif self.type == '0D' or self.type == '95':
+		elif self.type == '05' or self.type == '95':
 			self.da = '0'
 #			print("ping detected on Badge Freq. by",self.sa)	
 			self.evt = '0'
 			self.payload = data[19:]
-#			self.process_badge_packet()
-#		elif self.type == 'A5':
-#			print("\rSET FIRMWARE - BADGE",self.sa)
+			if self.process_badge_packet():
+				print(data)
+		elif self.type == '0D':
+			print("\rRSSI PING receved from node:",self.sa)
+			pass
+
 		elif self.type == 'A0':
 			self.da = '0'
 			self.evt = '0'
 			self.payload = data[19:]
 			self.process_tag_packet()
+			pass
+		
 		elif self.type == 'A5' or self.type =='A6':				
 			self.payload = data[7:]
 			self.process_set_firmware_tag()
@@ -226,12 +232,32 @@ class packet(object):
 #			pass		
 		elif self.evt == '5A':
 			idx=self.payload[2:4]
-			print("\r\n","USING 5A TO SET FIRMWARE ",self.sa,"->",self.da," idx",idx)
+			print("\r","USING 5A TO SET FIRMWARE ",self.sa,"->",self.da," idx",idx)
+			self.process_set_firmware()
+			
 			#print(self.payload)
 		else:
-			print("\r\nPAYLOAD 1:")
+			print("\rPAYLOAD 1:")
 			print("\r\n ",self.sa,"->",self.da,self.payload)				
 		pass
+
+
+	def process_set_firmware(self):
+		new_fware = 0
+		header = 0
+		num_of_blocks = 0
+		fmt_rev = 0
+		device_type = self.payload[0:2]
+		image_index = int(rev_bytes(self.payload[2:6],4),16)
+		if image_index == 0:
+			self.dfu_header = self.payload[6:8]
+			self.dfu_fmt = self.payload[8:10]
+			self.dfu_new_rev = int(rev_bytes(self.payload[10:14],4),16)
+			self.dfu_num_of_blocks = int(rev_bytes(self.payload[14:18],4),16)		
+		print("\rSET FIRMWARE",self.dfu_new_rev,"for Device Type:",device_type, \
+			" idx:",image_index,"of",self.dfu_num_of_blocks,"blks")
+		pass	
+
 
 	def process_payload2(self,payload):
 		self.data =''		
@@ -325,9 +351,12 @@ class packet(object):
 			print ("\rRSSI:",self.rssi,dev,self.sa,"Rev.",curr_fware,\
 				"Batt:",battmv,"mV","Accel",accel,"-",extra,"DFU:",DFU_idx,"-",DFU_rev,"err:",err)	
 	#		print("\r\n",self.payload,"\r\n")
+			return 0
 	
 		except Exception, e:
 			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
+			return e
+			
 			
 		pass	
 	
@@ -355,7 +384,9 @@ class packet(object):
 		except Exception, e:
 			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
 			
-		pass	
+		pass		
+		
+			
 		
 	def process_set_firmware_tag(self):
 		new_fware = 0
@@ -472,6 +503,14 @@ def process_packet(q,op):
 			op.clear()		
 
 			
+
+
+def kbd_iput(op):
+	while op.isSet():
+		CMD = input("?")
+	pass	
+
+
 
 def main(argv):
 	if(len(argv)<4):   
