@@ -61,7 +61,7 @@ display = {'01':'yes',\
 		   '06':'',\
 		   #'07':'',\
 		   '08':'',\
-		   '0B':'',\
+		   #'0B':'',\
 		   #'0D':''\
 		   }			   
 
@@ -148,8 +148,7 @@ class packet(object):
 		self.dfu_fmt = 1
 		self.dfu_header=0
 		self.dfu_num_of_blocks = 0
-		self.rssiFilter = -80
-		
+		self.rssiFilter = -80		
 		pass
 
 
@@ -233,9 +232,10 @@ class packet(object):
 		elif self.evt == '5A':
 			idx=self.payload[2:4]
 			print("\r","USING 5A TO SET FIRMWARE ",self.sa,"->",self.da," idx",idx)
-			self.process_set_firmware()
+			if self.process_set_firmware():
+				print(data)
+			pass	
 			
-			#print(self.payload)
 		else:
 			print("\rPAYLOAD 1:")
 			print("\r\n ",self.sa,"->",self.da,self.payload)				
@@ -249,13 +249,19 @@ class packet(object):
 		fmt_rev = 0
 		device_type = self.payload[0:2]
 		image_index = int(rev_bytes(self.payload[2:6],4),16)
-		if image_index == 0:
-			self.dfu_header = self.payload[6:8]
-			self.dfu_fmt = self.payload[8:10]
-			self.dfu_new_rev = int(rev_bytes(self.payload[10:14],4),16)
-			self.dfu_num_of_blocks = int(rev_bytes(self.payload[14:18],4),16)		
-		print("\rSET FIRMWARE",self.dfu_new_rev,"for Device Type:",device_type, \
-			" idx:",image_index,"of",self.dfu_num_of_blocks,"blks")
+		try:
+			if image_index == 0:
+				self.dfu_header = self.payload[6:8]
+				self.dfu_fmt = self.payload[8:10]
+				self.dfu_new_rev = int(rev_bytes(self.payload[10:14],4),16)
+				self.dfu_num_of_blocks = int(rev_bytes(self.payload[14:18],4),16)		
+			print("\rSET FIRMWARE",self.dfu_new_rev,"for Device Type:",device_type, \
+				" idx:",image_index,"of",self.dfu_num_of_blocks,"blks")
+			return 0
+			
+		except Exception, e:
+			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
+			return e		
 		pass	
 
 
@@ -414,11 +420,12 @@ class packet(object):
 		print_buffer +=	(self.sa + " -> " + self.da+"\r\n")
 		sys.stdout.write(print_buffer)
 		sys.stdout.write(self.data)
+		print_buffer = ''
 		pass
 
 
 # defined values
-que_size=100
+que_size=500
 
 q=Queue.Queue(maxsize=que_size)
 ser=serial.Serial()
@@ -478,7 +485,7 @@ def get_packet(q,op):
 					packet=data.replace(" ","")
 					q.put(bytes(packet[4:]))
 				else:
-					print("PACKET LOSS - queue size = ",q.qsize())    
+					print("PACKET LOSS!\r\n queue size = ",q.qsize())    
 		except Exception, e:	
 			print("ERROR: ",str(e))
 			op.clear()		
