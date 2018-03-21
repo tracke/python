@@ -60,7 +60,7 @@ display = {'01':'yes',\
 		   '0A':'',\
 		   '06':'',\
 		   #'07':'',\
-		   '08':'',\
+		   #'08':'',\
 		   #'0B':'',\
 		   #'0D':''\
 		   }			   
@@ -148,7 +148,9 @@ class packet(object):
 		self.dfu_fmt = 1
 		self.dfu_header=0
 		self.dfu_num_of_blocks = 0
-		self.rssiFilter = -80		
+		self.rssiFilter = -80
+		self.target_hwid = ""
+		self.my_packet = 0				
 		pass
 
 
@@ -162,6 +164,14 @@ class packet(object):
 		self.cmd_evt = data[33:35]
 		if self.filterRSSI():
 			return
+		if self.my_packet == 1:
+			if not self.sa == self.target_hwid:
+				return
+		if self.type == '02':
+			print(".",end="")
+#			print("\rIDLE ",self.sa,"->",self.da)
+		if self.type == '08':
+			print ("\r ACK",self.sa,"->",self.da)	
 		if self.type == '03' or \
 		   self.type == '07' or \
 		   self.type == '09' or \
@@ -360,7 +370,7 @@ class packet(object):
 			return 0
 	
 		except Exception, e:
-			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
+			print("\r\n BAD BADGE PACKET:",e,"\r\n",self.payload)
 			return e
 			
 			
@@ -386,11 +396,12 @@ class packet(object):
 			print ("\rRSSI:",self.rssi,dev,self.sa,"Rev.",curr_fware,\
 				"Batt:",battmv,"mV","Accel",accel,"-",extra,"DFU:",DFU_idx,"-",DFU_rev,"err:",err)	 	
 	#		print("\r\n",self.payload,"\r\n")
+			return 0
 	
 		except Exception, e:
-			print("\r\n BAD PACKET:",e,"\r\n",self.payload)
-			
-		pass		
+			print("\r\n BAD TAG PACKET:",e,"\r\n",self.payload)
+			return e
+
 		
 			
 		
@@ -418,8 +429,8 @@ class packet(object):
 		if self.evt in mesh_event:	
 			print_buffer += (mesh_event.get(self.evt) +" ")
 		print_buffer +=	(self.sa + " -> " + self.da+"\r\n")
-		sys.stdout.write(print_buffer)
-		sys.stdout.write(self.data)
+		print(print_buffer)
+#		sys.stdout.write(self.data)
 		print_buffer = ''
 		pass
 
@@ -480,12 +491,13 @@ def get_packet(q,op):
 	while op.isSet():
 		try:
 			data=ser.readline()
-			if data.strip():
-				if not q.full():
-					packet=data.replace(" ","")
-					q.put(bytes(packet[4:]))
-				else:
-					print("PACKET LOSS!\r\n queue size = ",q.qsize())    
+			if data[0:4] == 'RSSI':
+				if data.strip():
+					if not q.full():
+						packet=data.replace(" ","")
+						q.put(bytes(packet[4:]))
+					else:
+						print("PACKET LOSS!\r\n queue size = ",q.qsize())    
 		except Exception, e:	
 			print("ERROR: ",str(e))
 			op.clear()		
@@ -521,13 +533,21 @@ def kbd_iput(op):
 
 def main(argv):
 	if(len(argv)<4):   
-		print ("usage: ",argv[0],"COMx baudrate Freq")
+		print ("usage: ",argv[0],"COMx baudrate Freq target_hwid")
 		return    
 	comm_port=argv[1]
 	baud=argv[2]
 	freq=int(argv[3])
 	if not freq < 82 and freq > 73:
 		freq=78
+
+	if(len(argv)<5):
+		frame.target_hwid = ""
+		frame.my_packet = 0
+	else:
+		frame.target_hwid = argv[4]
+		frame.my_packet = 1		
+	print(frame.target_hwid,frame.my_packet)		
 
 
 	try:
